@@ -1,0 +1,105 @@
+---
+title: "Weather"
+output: 
+  html_document:
+    theme: cerulean
+    code_folding: hide
+---
+
+```{r, warning=FALSE, message=FALSE, ev}
+library(GSODR)
+library(pander)
+library(ggplot2)
+library(car)
+load(system.file("extdata", "isd_history.rda", package = "GSODR"))
+```
+
+## Background
+
+Dew point, the temperature at which air becomes saturated with moisture, is influenced by temperature and varies across regions due to factors like elevation and climate. This study explores how the relationship between temperature and dew point differs between Rexburg, Idaho and Yakima, Washington—two cities with distinct geographic and climatic characteristics.
+
+Using daily 2024 weather data from the Global Summary of the Day (GSOD) dataset, we apply a multiple linear regression model to examine whether dew point responds differently to temperature in each location. The model includes an interaction term to allow both the slope and intercept of the relationship to vary by city.
+
+This structure enables us to fit two separate regression lines—one for each location—and assess whether the rate at which dew point increases with temperature is consistent across regions or location-dependent.
+
+## Hypothesis
+
+We begin by stating the **Null and Alternative Hypotheses**:
+
+- $H_{0_1}$: $\beta_1 = 0$ — Temperature has no effect on dew point in Rexburg  
+- $H_{A_1}$: $\beta_1 \ne 0$ — Temperature affects dew point in Rexburg  
+
+- $H_{0_2}$: $\beta_2 = 0$ — Yakima has the same baseline dew point as Rexburg  
+- $H_{A_2}$: $\beta_2 \ne 0$ — Yakima has a different baseline dew point  
+
+- $H_{0_3}$: $\beta_3 = 0$ — The effect of temperature on dew point is the same in both locations  
+- $H_{A_3}$: $\beta_3 \ne 0$ — The effect of temperature on dew point differs by location  
+
+We fit the following **multiple linear regression model**:
+$$
+\text{DEWP} = \beta_0 + \beta_1 \cdot \text{TEMP} + \beta_2 \cdot \text{NAME}_{\text{Yakima}} + \beta_3 \cdot (\text{TEMP} \cdot \text{NAME}_{\text{Yakima}}) + \varepsilon
+$$
+
+Where:
+- $\beta_0$: Intercept for Rexburg  
+- $\beta_1$: Effect of TEMP in Rexburg  
+- $\beta_2$: Yakima's intercept difference from Rexburg  
+- $\beta_3$: Yakima's slope difference from Rexburg  
+
+## Analysis
+
+```{r}
+rexburg <- get_GSOD(years = 2024, station = "726818-94194")
+yakima <- get_GSOD(years = 2024, station = "727810-24243")
+
+weather <- rbind(rexburg, yakima)
+
+ggplot(weather, aes(x = TEMP, y = DEWP, color = factor(NAME))) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = y ~ x) +
+  labs(title = "Effect of Temperature on Dew Point",
+       x = "Temperature (°F)",
+       y = "Dew Point (°F)")
+```
+
+The plot reveals a clear linear trend in both cities: as temperature increases, dew point tends to increase. This suggests a positive linear relationship between temperature and dew point in both locations. What we need to now examine, is the interaction between each city and their temp on dewpoint.
+
+```{r}
+weather.lm <- lm(DEWP ~ TEMP + NAME + TEMP:NAME, data = weather)
+pander(summary(weather.lm))
+```
+
+The fitted model used 730 total observations. 
+Key findings are:
+
+- **Intercept ($\beta_0$)**: -4.551  
+  Estimated dew point in Rexburg when temperature is 0°F.
+
+- **TEMP ($\beta_1$)**: 0.6083  
+  In Rexburg, each 1°F increase in temperature is associated with a 0.6083°F increase in dew point.
+
+- **Yakima ($\beta_2$)**: 0.7493  
+  At 0°F, Yakima’s dew point is 0.7493°F higher than Rexburg’s.
+
+- **TEMP × Yakima ($\beta_3$)**: -0.1008  
+  The effect of temperature on dew point is weaker in Yakima by 0.1008°F compared to Rexburg.
+
+These coefficients suggest that while both cities exhibit a strong positive relationship between temperature and dew point, the slope is shallower for Yakima, and Yakima starts slightly higher.
+
+Significant p-values support rejecting all three null hypotheses. But can we trust these p-values?
+
+## Model Diagnostics
+
+To verify model validity, we will examine the residual behavior.
+
+```{r}
+plot(weather.lm, which = 1)
+qqPlot(weather.lm$residuals)
+plot(weather.lm$residuals, main="Residuals vs. Index")
+```
+
+- The **Residuals vs. Fitted plot** shows mild curvature, suggesting some non-linearity.
+- The **Q-Q plot** indicates that residuals are mostly normal with some tail deviations.
+- The **Residuals vs. Index plot** shows no obvious pattern, suggesting residual independence.
+
+Overall, the model appears reasonable. However, mild non-linearity or outliers may slightly influence the results and warrant further exploration to ensure trust.

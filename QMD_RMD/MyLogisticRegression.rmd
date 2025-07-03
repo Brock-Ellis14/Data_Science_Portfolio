@@ -1,0 +1,102 @@
+---
+title: "My Simple Logistic Regression"
+output: 
+  html_document:
+    theme: cerulean
+    code_folding: hide
+---
+## Background
+
+Diabetes is a growing health issue in the U.S., affecting over 37 million people and increasing the risk of serious complications like heart disease and kidney failure. Early detection and management are key to preventing long-term damage. Researchers are especially interested in how lifestyle and physiological factors—like glucose levels—contribute to diabetes risk.
+
+This analysis uses data from the Framingham Heart Study, a long-term health study that includes metabolic and lifestyle information. Each row represents an individual and includes features such as age, sex, education, blood pressure, cholesterol, BMI, and glucose, along with diabetes status.
+
+### Risk Prediction Based on Patient Data
+
+Our focus is on the diabetes variable, which shows whether a person has been diagnosed with diabetes. This binary outcome (1 = diabetic, 0 = not diabetic) lets us explore how glucose levels relate to diabetes status.
+
+While it's widely known that high glucose is a warning sign, this dataset allows us to measure the strength of that relationship. By applying logistic regression, we can estimate how changes in glucose affect the likelihood of having diabetes.
+
+In the next sections, we’ll build and interpret a simple logistic regression model, visualize its predictions, and assess how well it fits the data. Our goal is to better understand glucose as a predictor and its role in early diabetes detection.
+
+```{r, include=FALSE}
+library(mosaic)
+library(tidyverse)
+library(ggplot2)
+library(ResourceSelection)
+library(alr4)
+library(DT)
+library(pander)
+
+chol = read.csv("C:/Users/brock/Downloads/Statistics-Notebook-master/Statistics-Notebook-master/Analyses/Logistic Regression/framingham.csv")
+```
+
+## Hypothesis
+
+If $\beta_1$ is zero, then glucose levels provide no predictive power for determining the probability of diabetes. Conversely, if $\beta_1$. is significantly different from zero, glucose levels contribute meaningfully to estimating diabetes risk.
+
+$$
+ H_0: \beta_1 = 0 \\
+  H_a: \beta_1 \neq 0 \\
+  \alpha = .05
+$$
+
+
+
+## Logistic Model
+```{r}
+ggplot(chol, aes(x = glucose, fill = factor(diabetes))) +
+  geom_histogram(binwidth = 10, position = "identity", alpha = 0.6) +
+  labs(x = "Glucose Level", fill = "Diabetes Status") +
+  theme_minimal()
+
+pander(favstats(chol$glucose ~ chol$diabetes))
+```
+
+The table and graph above reveals a pronounced right-skew in the glucose distribution, primarily driven by individuals with diabetes. Across all summary statistics, those with diabetes consistently show much higher glucose levels than those without. For instance, at the 25th percentile, diabetics have glucose levels nearly 39 points higher. The median difference grows to 67 points, and maximum values reach as high as 394 for diabetics compared to 163 for non-diabetics. Even the means are strikingly different—170 for diabetics versus just 79 for non-diabetics—highlighting substantial variation between the two groups.
+
+This level of separation suggests a meaningful relationship between glucose levels and diabetes status. Because the outcome (diabetes) is binary and the predictor (glucose) is continuous and right-skewed, logistic regression is an appropriate modeling choice. It allows us to estimate the probability of a person having diabetes based on their glucose level, while accounting for the non-normality in the predictor.
+
+## Model Fitting
+
+Based on these patterns, we now proceed to fit a logistic regression model using glucose as the explanatory variable. This model will help quantify how increases in glucose affect the likelihood of having diabetes, and provide a generalizable prediction framework.
+
+```{r}
+chol.glm <- glm(diabetes ~ glucose, data=chol, family=binomial)
+summary(chol.glm) %>% pander()
+```
+
+The logistic regression output reveals a strong relationship between glucose levels and diabetes status. The model has an intercept of -11.9 and a slope of 0.0847, indicating that each unit increase in glucose raises the log-odds of having diabetes. Both coefficients are highly significant, with very small p-values, suggesting the association is not due to chance. This supports the conclusion that glucose is a meaningful predictor of diabetes in the medical field today.
+
+The residual deviance drops from 963.5 to 443.9 after including glucose, showing the model explains a large portion of the variation in outcomes. Given the binary response and skewed glucose distribution, logistic regression is an appropriate method for modeling this relationship.
+
+## Model Visual
+
+To visualize the model’s effectiveness, we now examine a graph that overlays the fitted logistic curve on the observed data. This helps illustrate how the probability of diabetes increases with glucose and confirms the model’s predictive power.
+```{r}
+plot(chol$glucose, 
+     jitter(chol$diabetes, amount = 0.05), 
+     pch = 16, col = "darkblue",
+     xlab = "Glucose", 
+     ylab = "Diabetes (0 = No, 1 = Yes)",
+     main = "Logistic Regression: Diabetes vs Glucose")
+
+curve(exp(-11.9 + 0.08474 * x) / (1 + exp(-11.9 + 0.08474 * x)), 
+      add = TRUE, col = "red", lwd = 1.5)
+```
+The plot displays the fitted logistic regression curve (in red) overlaid on the observed data points (in blue). The curve shows the predicted probability of diabetes as glucose levels increase. As expected with a logistic model, the curve takes on an S-shape, with a sharp rise in predicted probability occurring between glucose levels of approximately 110 and 150. This inflection zone indicates where the risk of diabetes increases most dramatically. The heavy concentration of blue points near 0 for lower glucose values, and the rising cluster near 1 at higher values, visually confirms the strength and direction of the model’s predictions
+
+While the curve appears to fit the data well overall, it is important to validate the statistical reliability of the model. Although the p-values from the summary output are extremely small—suggesting a strong relationship—it’s critical to check the underlying model assumptions. To confirm the trustworthiness of these results, we will now examine diagnostic plots such as residuals, fitted values, and leverage to detect any potential outliers, nonlinearity, or influential observations that might affect the model’s validity.
+
+
+## Model Diagnostics
+```{r}
+hoslem.test(chol.glm$y, chol.glm$fitted, g=5) %>% pander()
+```
+
+The Hoslem test produced a p-value of 0.026, which is below our significance threshold of 0.05. This suggests that the model's predicted probabilities do not align perfectly with the observed outcomes across subgroups. While this result raises concerns about the model’s calibration, especially in mid-range glucose levels, it does not necessarily indicate that the model is invalid. Instead, it suggests that additional predictors or non-linear terms may improve the fit.
+
+
+## Conclusion
+
+This analysis demonstrates a strong and statistically significant relationship between glucose levels and diabetes risk. The logistic regression model shows good explanatory power, with a major reduction in deviance and highly significant coefficients. While the Hoslem test indicates some misalignment between predicted and observed outcomes, especially in the mid-range glucose values, this likely reflects calibration issues rather than a fundamental flaw in the model. Future models may benefit from incorporating additional predictors. Overall, glucose appears to be a valuable predictor of diabetes and supports early risk identification in clinical settings.

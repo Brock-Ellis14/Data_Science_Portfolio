@@ -1,0 +1,129 @@
+---
+title: "My Two-way ANOVA"
+output: 
+  html_document:
+    theme: cerulean
+    code_folding: hide
+---
+
+```{r, warning=FALSE, message=FALSE}
+library(mosaic)
+library(DT)
+library(pander)
+library(car)
+library(tidyverse)
+library(ggplot2)
+
+
+raw <- read_csv("https://raw.githubusercontent.com/THOMASELOVE/432-data/master/data/bonding.csv")
+head(raw)
+unique(raw$resin)
+```
+# Introduction
+
+Understanding the factors that influence material strength is crucial in materials science and engineering, particularly when optimizing products for durability and performance. This is what my Dad told me, at least. This study investigates how two categorical variables, namely light source type (LED vs Halogen) and resin type (A through D)-affect the strength of a given material. The dataset comprises 80 observations, each representing a unique run where the strength was measured after exposure to a specific combination of light and resin.
+
+The primary objective of this study is to determine whether there are significant main effects of light source and resin type on strength, and whether there is an interaction effect between these two factors. This analysis will be conducted using a two-way Analysis of Variance (ANOVA), which is appropriate for exploring how two categorical independent variables jointly influence a continuous dependent variable.
+
+By identifying these effects, the study aims to provide insights into the optimal combinations of light and resin that yield higher material strength, potentially informing decisions in manufacturing, materials processing, or product development.
+
+**p.s**
+The dataset used in this study was obtained from Thomas E Love at Case Western Reserve University, who provides free online datasets on his github page.
+
+# Hypothesis
+**Light Factor Levels**
+$$
+H_0: \mu_{\text{LED}} = \mu_{\text{Halogen}}  \\
+H_A: \mu_{\text{LED}} \not= \mu_{\text{Halogen}}
+$$
+
+**Resin Factor Levels**
+$$
+H_0: \mu_{\text{A}} = \mu_{\text{B}} = \mu_{\text{C}} = \mu_{\text{D}}\\
+H_A: \mu_i \not= \mu_j \text{ For at least one of the levels}
+$$
+**Resin ~ Light**
+$$
+H_0: \mu_{\text{Light}} = \mu_{\text{Resin}}  \\
+H_A: \mu_{\text{Light}} \not= \mu_\text{Resin}
+$$
+#Analysis
+
+To explore the effects of light source and resin type on material strength, we begin with graphical and numerical summaries of the data. These visualizations help us understand the distribution of strength measurements across different factor levels before performing formal hypothesis testing. The following boxplot illustrates how strength varies with the type of light source, followed by descriptive statistics for each light category.
+
+```{r}
+ggplot(raw, aes(x=factor(light), y=strength, fill=light)) +
+  geom_boxplot() +
+  labs(title="Strength of bond by light", 
+       y="Light",
+       x="Strength") +
+  theme_bw()
+
+pander(favstats(strength ~ light, data=raw))
+```
+The boxplot and summary statistics reveal some variability in bond strength between the two light sources. Halogen light has a slightly higher mean strength (25.13) compared to LED (23.81), but also shows greater variability (standard deviation of 10.27 vs. 6.63). Both distributions appear relatively symmetric, though Halogen has a wider range. These initial findings suggest that light source may influence bond strength, warranting further statistical testing.
+
+We now turn to the second factor — resin type — to examine how different resins impact material strength. The following plot and statistics summarize the distribution of strength across the four resin categories.
+
+```{r}
+ggplot(raw, aes(x=resin, y=strength, fill=resin)) +
+  geom_boxplot() +
+  labs(title="Strength of bond by Resin", 
+       y="Resin",
+       x="Strength") +
+  theme_bw()
+
+pander(favstats(strength ~ resin, data=raw))
+```
+The distribution of bond strength varies noticeably across the four resin types. Resin D shows the highest mean strength (32.08) and greatest variability, while Resin A has the lowest mean (18.41) and a more compact spread. The median strength increases progressively from Resin A to D, suggesting a potential trend in performance based on resin type. These differences point toward a significant main effect of resin on strength, which warrants further investigation.
+
+To understand whether the effect of resin depends on the type of light source used, we now examine the interaction between resin and light using side-by-side boxplots and a two-way summary of the data.
+
+```{r}
+ggplot(raw, aes(x=resin, y=strength, fill=light)) +
+  geom_boxplot() +
+  labs(title="Strength of bond by Resin", 
+       y="Resin",
+       x="Strength") +
+  theme_bw()
+
+pander(favstats(strength ~ resin + light, data=raw))
+```
+The interaction plot reveals that the effect of resin on bond strength varies depending on the light source. For example, Resin D shows the highest mean strength under Halogen (40.3) but drops considerably under LED (23.85). In contrast, Resins B and C perform better with LED than Halogen. These differences suggest that there may be an interaction effect — the influence of resin type may depend on which light source is used.
+
+To formally evaluate whether these apparent differences are statistically significant, we now conduct a two-way ANOVA to test for main effects of light and resin, as well as their interaction.
+
+```{r}
+raw.aov = aov(strength ~ resin + light + resin:light, data=raw)
+pander(summary(raw.aov))
+```
+The results of the two-way ANOVA show that resin type has a statistically significant effect on bond strength, with a p-value far below the alpha level of 0.05. This indicates that at least one resin differs significantly from the others in terms of average strength. In contrast, the main effect of light source is not statistically significant (p = 0.2963), suggesting that, overall, LED and Halogen lights do not differ in their impact on strength. However, the interaction between resin and light is significant (p < 0.05), meaning the effect of resin depends on which light source is used. This supports the patterns observed in the earlier interaction plot.
+
+
+#Trust?
+
+To ensure the validity of these results, we must now check that the assumptions of the ANOVA are satisfied. This includes assessing the residuals for constant variance and normal distribution using various plots.
+
+```{r}
+par(mfrow=c(1,2))
+plot(raw.aov, which=1:2)
+xyplot(strength ~ factor(resin), data=raw, type=c("p","a"), main="", col='gray', xlab="Type of Resin", ylab="Strength of Bonds")
+xyplot(strength ~ factor(light), data=raw, type=c("p","a"), main="", col='gray', xlab="Type of Light", ylab="Strength of Bonds")
+```
+To evaluate whether the assumptions of ANOVA were met, we examined the residual diagnostics. The Residuals vs Fitted plot shows no clear pattern or funnel shape, and having simular height levels, suggesting that the assumption of constant variance holds reasonably well. The residuals appear randomly scattered around zero, which is desirable. The QQ plot shows that most points lie along the diagonal reference line, indicating that the residuals are approximately normally distributed, with only minor deviations at the tails. While a few outliers exist (e.g., observations 1, 63, and 67), they do not appear to severely violate the model assumptions.
+
+The additional plots by resin and light type further support these findings. The spread of residuals across groups appears relatively balanced, and the fitted trend lines align with the patterns identified in the boxplots and ANOVA.
+
+Given that the assumptions of normality and equal variance are reasonably met, we can trust the results of the ANOVA.
+
+# Conclusion
+
+In conclusion, resin type significantly affects bond strength, and its effectiveness depends on the light source used. Light source alone does not have a significant effect. The assumptions for ANOVA were reasonably met, so the results can be trusted. These findings may guide optimal material combinations for stronger bonds.
+
+
+
+
+
+
+
+
